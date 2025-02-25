@@ -2,6 +2,40 @@ import os
 import pygame
 import random
 from pathlib import Path
+import ctypes
+from ctypes import wintypes
+import time
+
+# Windows API için sabitler
+VK_MEDIA_NEXT_TRACK = 0xB0
+VK_MEDIA_PREV_TRACK = 0xB1
+VK_MEDIA_PLAY_PAUSE = 0xB3
+VK_VOLUME_UP = 0xAF
+VK_VOLUME_DOWN = 0xAE
+VK_VOLUME_MUTE = 0xAD
+
+# Windows API için gerekli yapılar
+user32 = ctypes.WinDLL('user32', use_last_error=True)
+
+# Tuş gönderme fonksiyonları için gerekli yapılar
+INPUT_KEYBOARD = 1
+KEYEVENTF_KEYUP = 0x0002
+
+class KEYBDINPUT(ctypes.Structure):
+    _fields_ = (("wVk", wintypes.WORD),
+                ("wScan", wintypes.WORD),
+                ("dwFlags", wintypes.DWORD),
+                ("time", wintypes.DWORD),
+                ("dwExtraInfo", ctypes.POINTER(ctypes.c_ulong)))
+
+class INPUT(ctypes.Structure):
+    class _INPUT(ctypes.Union):
+        _fields_ = (("ki", KEYBDINPUT),
+                    ("mi", ctypes.c_byte * 28),
+                    ("hi", ctypes.c_byte * 32))
+    _anonymous_ = ("_input",)
+    _fields_ = (("type", wintypes.DWORD),
+                ("_input", _INPUT))
 
 class MusicController:
     def __init__(self, music_dir="music"):
@@ -9,131 +43,88 @@ class MusicController:
         Initialize the music controller.
         
         Args:
-            music_dir: Directory containing music files (mp3, wav)
+            music_dir: Directory containing music files (mp3, wav) - not used in this version
         """
-        # Initialize pygame mixer
+        # Initialize pygame mixer for sound effects (optional)
         pygame.mixer.init()
         
         # Music state
         self.is_playing = False
-        self.current_track_index = 0
         self.volume = 0.5  # 0.0 to 1.0
-        
-        # Set up music directory and track list
-        self.music_dir = music_dir
-        self.ensure_music_dir()
-        self.tracks = self.load_tracks()
         
         # Log messages
         self.log_messages = []
         
-    def ensure_music_dir(self):
-        """Create music directory if it doesn't exist."""
-        if not os.path.exists(self.music_dir):
-            os.makedirs(self.music_dir)
-            self.add_log("Created music directory")
-            
-            # Create a README file in the music directory
-            with open(os.path.join(self.music_dir, "README.txt"), "w") as f:
-                f.write("Place your music files (MP3, WAV) in this directory.\n")
-                f.write("The application will automatically detect and play them.\n")
-    
-    def load_tracks(self):
+        self.add_log("Media controller initialized - ready to control system media")
+        
+    def send_media_key(self, key_code):
         """
-        Load music tracks from the music directory.
+        Send a media key press to the system.
         
-        Returns:
-            List of track paths
+        Args:
+            key_code: Virtual key code to send
         """
-        valid_extensions = ['.mp3', '.wav', '.ogg']
-        tracks = []
+        # Prepare input structure for key down
+        inputs = (INPUT * 1)()
+        inputs[0].type = INPUT_KEYBOARD
+        inputs[0].ki.wVk = key_code
+        inputs[0].ki.wScan = 0
+        inputs[0].ki.dwFlags = 0
+        inputs[0].ki.time = 0
+        inputs[0].ki.dwExtraInfo = ctypes.pointer(ctypes.c_ulong(0))
         
-        try:
-            for file in os.listdir(self.music_dir):
-                file_path = os.path.join(self.music_dir, file)
-                if os.path.isfile(file_path) and any(file.lower().endswith(ext) for ext in valid_extensions):
-                    tracks.append(file_path)
-        except Exception as e:
-            self.add_log(f"Error loading tracks: {str(e)}")
-            
-        if not tracks:
-            self.add_log("No music tracks found. Please add MP3 or WAV files to the music directory.")
-            # Add a sample track path that doesn't exist to prevent errors
-            tracks = [os.path.join(self.music_dir, "sample.mp3")]
-            
-        return tracks
-    
-    def reload_tracks(self):
-        """Reload the track list from the music directory."""
-        self.tracks = self.load_tracks()
-        self.add_log(f"Reloaded tracks: found {len(self.tracks)} music files")
+        # Send key down
+        user32.SendInput(1, ctypes.byref(inputs), ctypes.sizeof(INPUT))
         
-        # Reset current track index if it's out of bounds
-        if self.current_track_index >= len(self.tracks):
-            self.current_track_index = 0
+        # Small delay
+        time.sleep(0.05)
+        
+        # Prepare input structure for key up
+        inputs[0].ki.dwFlags = KEYEVENTF_KEYUP
+        
+        # Send key up
+        user32.SendInput(1, ctypes.byref(inputs), ctypes.sizeof(INPUT))
+        
+        return True
     
     def play(self):
-        """Play the current track."""
-        if not self.tracks:
-            self.add_log("No tracks available to play")
-            return
-            
+        """Play/Pause the current track."""
         try:
-            if not self.is_playing:
-                if not pygame.mixer.music.get_busy():
-                    # Load and play the current track
-                    pygame.mixer.music.load(self.tracks[self.current_track_index])
-                    pygame.mixer.music.set_volume(self.volume)
-                    pygame.mixer.music.play()
-                else:
-                    # Unpause if paused
-                    pygame.mixer.music.unpause()
-                    
-                self.is_playing = True
-                track_name = os.path.basename(self.tracks[self.current_track_index])
-                self.add_log(f"Playing: {track_name}")
+            success = self.send_media_key(VK_MEDIA_PLAY_PAUSE)
+            self.is_playing = not self.is_playing
+            self.add_log("Play/Pause media")
+            return success
         except Exception as e:
-            self.add_log(f"Error playing music: {str(e)}")
+            self.add_log(f"Error controlling media: {str(e)}")
+            return False
     
     def pause(self):
         """Pause the current track."""
-        if self.is_playing:
-            pygame.mixer.music.pause()
-            self.is_playing = False
-            self.add_log("Paused playback")
+        return self.play()  # Play/Pause is a toggle
     
     def next_track(self):
         """Play the next track."""
-        if not self.tracks:
-            return
-            
-        self.current_track_index = (self.current_track_index + 1) % len(self.tracks)
-        track_name = os.path.basename(self.tracks[self.current_track_index])
-        self.add_log(f"Next track: {track_name}")
-        
-        # Stop current playback and start the new track
-        pygame.mixer.music.stop()
-        self.play()
+        try:
+            success = self.send_media_key(VK_MEDIA_NEXT_TRACK)
+            self.add_log("Next track")
+            return success
+        except Exception as e:
+            self.add_log(f"Error controlling media: {str(e)}")
+            return False
     
     def previous_track(self):
         """Play the previous track."""
-        if not self.tracks:
-            return
-            
-        self.current_track_index = (self.current_track_index - 1) % len(self.tracks)
-        track_name = os.path.basename(self.tracks[self.current_track_index])
-        self.add_log(f"Previous track: {track_name}")
-        
-        # Stop current playback and start the new track
-        pygame.mixer.music.stop()
-        self.play()
+        try:
+            success = self.send_media_key(VK_MEDIA_PREV_TRACK)
+            self.add_log("Previous track")
+            return success
+        except Exception as e:
+            self.add_log(f"Error controlling media: {str(e)}")
+            return False
     
     def toggle_play_pause(self):
         """Toggle between play and pause states."""
-        if self.is_playing:
-            self.pause()
-        else:
-            self.play()
+        return self.play()
     
     def set_volume(self, volume):
         """
@@ -142,22 +133,36 @@ class MusicController:
         Args:
             volume: Float between 0.0 and 1.0
         """
-        self.volume = max(0.0, min(1.0, volume))
-        pygame.mixer.music.set_volume(self.volume)
-        self.add_log(f"Volume set to {int(self.volume * 100)}%")
+        # Adjust system volume (simplified)
+        try:
+            # Convert volume to number of key presses (0.0-1.0 to 0-10 range)
+            current_volume = self.volume
+            target_volume = max(0.0, min(1.0, volume))
+            
+            # Determine if we need to increase or decrease volume
+            if target_volume > current_volume:
+                # Increase volume
+                steps = int((target_volume - current_volume) * 10)
+                for _ in range(steps):
+                    self.send_media_key(VK_VOLUME_UP)
+            else:
+                # Decrease volume
+                steps = int((current_volume - target_volume) * 10)
+                for _ in range(steps):
+                    self.send_media_key(VK_VOLUME_DOWN)
+            
+            self.volume = target_volume
+            self.add_log(f"Volume set to {int(self.volume * 100)}%")
+            return True
+        except Exception as e:
+            self.add_log(f"Error setting volume: {str(e)}")
+            return False
     
     def shuffle(self):
-        """Shuffle the playlist and play a random track."""
-        if not self.tracks:
-            return
-            
-        self.current_track_index = random.randint(0, len(self.tracks) - 1)
-        track_name = os.path.basename(self.tracks[self.current_track_index])
-        self.add_log(f"Shuffled to: {track_name}")
-        
-        # Stop current playback and start the new track
-        pygame.mixer.music.stop()
-        self.play()
+        """Shuffle the playlist - not directly supported by media keys."""
+        self.add_log("Shuffle not directly supported by media keys")
+        # Could implement as a special sequence of keys if needed
+        return False
     
     def handle_movement(self, movement):
         """
@@ -174,7 +179,12 @@ class MusicController:
         elif movement in ['up', 'down']:
             self.toggle_play_pause()
         elif movement == 'special':
-            self.shuffle()
+            # Special movement could be used for mute/unmute
+            try:
+                self.send_media_key(VK_VOLUME_MUTE)
+                self.add_log("Mute/Unmute toggled")
+            except Exception as e:
+                self.add_log(f"Error toggling mute: {str(e)}")
     
     def get_current_track_info(self):
         """
@@ -183,17 +193,13 @@ class MusicController:
         Returns:
             Dictionary with track information
         """
-        if not self.tracks:
-            return {"name": "No tracks available", "status": "stopped", "index": 0, "total": 0}
-            
-        track_path = self.tracks[self.current_track_index]
-        track_name = os.path.basename(track_path)
-        
+        # We can't get actual track info from the system media controls
+        # So we'll return a placeholder
         return {
-            "name": track_name,
+            "name": "System Media Control",
             "status": "playing" if self.is_playing else "paused",
-            "index": self.current_track_index + 1,
-            "total": len(self.tracks)
+            "index": 1,
+            "total": 1
         }
     
     def add_log(self, message):
@@ -225,5 +231,4 @@ class MusicController:
     
     def cleanup(self):
         """Clean up resources."""
-        pygame.mixer.music.stop()
         pygame.mixer.quit() 

@@ -1,47 +1,50 @@
-# AI Music Control
+# AI Müzik Kontrolü
 
-A Python application that uses head movements to control music playback through computer vision and deep learning.
+Bilgisayar görüşü ve yapay zeka kullanarak kafa hareketleriyle sistem genelinde medya kontrolü sağlayan bir Python uygulaması.
 
-## Features
+## Özellikler
 
-- Real-time face detection and facial landmark tracking
-- Control music with head movements:
-  - Turn head right: Next song
-  - Turn head left: Previous song
-  - Move head up/down: Pause/Play music
-  - Special movement detection for additional controls
-- User-friendly GUI with video feed and logging console
+- Gerçek zamanlı yüz algılama ve yüz işaretleri takibi
+- Kafa hareketleriyle medya kontrolü:
+  - Kafayı sağa çevirme: Sonraki şarkı
+  - Kafayı sola çevirme: Önceki şarkı
+  - Kafayı yukarı/aşağı hareket ettirme: Oynat/Duraklat
+  - Özel hareket algılama: Sessiz/Sesli geçiş
+- Kullanıcı dostu arayüz, video akışı ve günlük konsolu
+- Spotify, YouTube, Apple Music gibi herhangi bir medya uygulamasını kontrol edebilme
 
-## Requirements
+## Gereksinimler
 
 - Python 3.7+
 - Webcam
-- Dependencies listed in requirements.txt
+- requirements.txt dosyasında listelenen bağımlılıklar
 
-## Installation
+## Kurulum
 
-1. Clone this repository
-2. Install dependencies:
+1. Bu depoyu klonlayın
+2. Bağımlılıkları yükleyin:
    ```
    pip install -r requirements.txt
    ```
 
-## Usage
+## Kullanım
 
-Run the main application:
-```
-python main.py
-```
+1. Önce kontrol etmek istediğiniz medya uygulamasını açın (Spotify, YouTube, vb.)
+2. Ardından uygulamayı çalıştırın:
+   ```
+   python main.py
+   ```
+3. Kafa hareketlerinizle medya kontrolünü sağlayın
 
-## Project Structure
+## Proje Yapısı
 
-- `main.py`: Entry point for the application
-- `face_detector.py`: Face detection and landmark tracking module
-- `music_controller.py`: Music playback control module
-- `gui.py`: PyQt5-based graphical user interface
-- `utils.py`: Utility functions and helpers
+- `main.py`: Uygulama giriş noktası
+- `face_detector.py`: Yüz algılama ve işaret takibi modülü
+- `music_controller.py`: Medya kontrolü modülü (sistem genelinde medya tuşlarını simüle eder)
+- `gui.py`: PyQt5 tabanlı grafik kullanıcı arayüzü
+- `utils.py`: Yardımcı fonksiyonlar
 
-## License
+## Lisans
 
-See the LICENSE file for details. 
+Detaylar için LICENSE dosyasına bakın. 
 
